@@ -1,6 +1,7 @@
 const axios = require('axios');
 const config = require('../config/mpesa');
 const mpesaAuth = require('../utils/mpesaAuth');
+const smsService = require('./smsService');
 const {
   generatePassword,
   generateTimestamp,
@@ -61,6 +62,20 @@ class MpesaService {
       
       // Log the transaction
       logTransaction('STK_PUSH', requestData, response.data, 'INITIATED');
+      
+      // Send SMS notifications
+      try {
+        // Send payment initiated SMS
+        await smsService.sendPaymentInitiated(formattedPhone, amount, transactionRef);
+        
+        // Send STK push notification
+        await smsService.sendSTKPushSent(formattedPhone, amount);
+        
+        console.log('📱 SMS notifications sent successfully for STK Push');
+      } catch (smsError) {
+        console.warn('⚠️ SMS notification failed:', smsError.message);
+        // Don't fail the main request if SMS fails
+      }
       
       return {
         success: true,

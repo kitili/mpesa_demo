@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const mpesaRoutes = require('./routes/mpesaRoutes');
+const smsRoutes = require('./routes/smsRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -61,6 +62,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/mpesa', mpesaRoutes);
+app.use('/api/sms', smsRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -85,6 +87,19 @@ app.get('/', (req, res) => {
           c2b: '/api/mpesa/callbacks/c2b',
           b2c: '/api/mpesa/callbacks/b2c'
         }
+      },
+      sms: {
+        send: '/api/sms/send',
+        bulk: '/api/sms/bulk',
+        customNotification: '/api/sms/custom-notification',
+        paymentInitiated: '/api/sms/payment-initiated',
+        paymentSuccess: '/api/sms/payment-success',
+        paymentFailed: '/api/sms/payment-failed',
+        stkPushSent: '/api/sms/stk-push-sent',
+        welcome: '/api/sms/welcome',
+        test: '/api/sms/test',
+        status: '/api/sms/status/:messageId',
+        providerStatus: '/api/sms/provider-status'
       }
     },
     documentation: 'Check the README.md file for detailed API documentation'
