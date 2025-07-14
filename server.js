@@ -4,11 +4,21 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+
+// Import routes
 const mpesaRoutes = require('./routes/mpesaRoutes');
 const smsRoutes = require('./routes/smsRoutes');
+const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+
+// Import database connection
+const database = require('./config/database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Connect to database
+database.connect().catch(console.error);
 
 // Security middleware
 app.use(helmet());
@@ -35,6 +45,7 @@ const limiter = rateLimit({
 });
 
 app.use('/api/mpesa', limiter);
+app.use('/api/auth', limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -50,29 +61,58 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Server is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0'
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const dbHealth = await database.healthCheck();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Server is running',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      version: '1.0.0',
+      database: dbHealth
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server health check failed',
+      error: error.message
+    });
+  }
 });
 
 // API routes
 app.use('/api/mpesa', mpesaRoutes);
 app.use('/api/sms', smsRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'MPesa Integration API',
+    message: 'TiaraConnect API',
     version: '1.0.0',
     endpoints: {
       health: '/health',
       demo: '/index.html',
+      admin: '/admin-dashboard.html',
+      auth: {
+        register: '/api/auth/register',
+        login: '/api/auth/login',
+        profile: '/api/auth/profile',
+        changePassword: '/api/auth/change-password',
+        forgotPassword: '/api/auth/forgot-password',
+        resetPassword: '/api/auth/reset-password'
+      },
+      admin: {
+        dashboard: '/api/admin/dashboard',
+        users: '/api/admin/users',
+        transactions: '/api/admin/transactions',
+        stats: '/api/admin/stats',
+        export: '/api/admin/export/transactions'
+      },
       mpesa: {
         stkPush: '/api/mpesa/stk-push',
         stkQuery: '/api/mpesa/stk-query',
@@ -129,22 +169,25 @@ app.use((error, req, res, next) => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
+  await database.disconnect();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
+  await database.disconnect();
   process.exit(0);
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 MPesa Integration API server running on port ${PORT}`);
+  console.log(`🚀 TiaraConnect API server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🌐 Demo interface: http://localhost:${PORT}/index.html`);
+  console.log(`👨‍💼 Admin dashboard: http://localhost:${PORT}/admin-dashboard.html`);
   console.log(`📚 API Documentation: http://localhost:${PORT}/`);
   
   // Log configuration status
@@ -152,6 +195,18 @@ app.listen(PORT, () => {
     console.warn('⚠️  MPesa credentials not configured. Please set up your .env file.');
   } else {
     console.log('✅ MPesa credentials configured');
+  }
+  
+  if (!process.env.MONGODB_URI) {
+    console.warn('⚠️  MongoDB URI not configured. Using default local database.');
+  } else {
+    console.log('✅ MongoDB URI configured');
+  }
+  
+  if (!process.env.JWT_SECRET) {
+    console.warn('⚠️  JWT secret not configured. Using default secret.');
+  } else {
+    console.log('✅ JWT secret configured');
   }
 });
 
